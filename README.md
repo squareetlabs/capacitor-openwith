@@ -43,6 +43,30 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 }
 ```
 
+3. Update your app's Info.plist to declare the document types your app can handle:
+
+```xml
+<key>CFBundleDocumentTypes</key>
+<array>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>All Files</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+            <string>public.content</string>
+            <string>public.data</string>
+            <string>public.text</string>
+            <string>public.image</string>
+            <string>public.audio</string>
+            <string>public.movie</string>
+            <string>public.composite-content</string>
+        </array>
+    </dict>
+</array>
+```
+
 ## API
 
 The plugin provides the following functions:
@@ -100,6 +124,12 @@ interface SharedFilesEvent {
 ```
 
 ## Usage
+The plugin can be used with various frameworks. Choose your framework below for specific implementation details:
+
+- [Angular Implementation](#1-create-a-service-to-handle-the-plugin)
+- [React Implementation](#react-example)
+- [Vue Implementation](#vue-example)
+- [Svelte Implementation](#svelte-example-bonus)
 
 ### 1. Create a service to handle the plugin
 
@@ -196,6 +226,219 @@ export class MyComponent {
     }
 }
 ```
+
+## Framework Examples
+
+### React Example
+
+```typescript
+// OpenWithProvider.tsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { OpenWith, SharedData } from '@squareetlabs/capacitor-openwith';
+
+interface OpenWithContextType {
+  sharedData: SharedData | null;
+}
+
+const OpenWithContext = createContext<OpenWithContextType>({ sharedData: null });
+
+export const useOpenWith = () => useContext(OpenWithContext);
+
+export const OpenWithProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [sharedData, setSharedData] = useState<SharedData | null>(null);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      console.log('OpenWith only works on native platforms');
+      return;
+    }
+
+    const initializeOpenWith = async () => {
+      try {
+        await OpenWith.addHandler(() => {
+          console.log('OpenWith handler added successfully');
+        });
+
+        await OpenWith.setVerbosity({ level: 1 });
+        await OpenWith.init();
+
+        await OpenWith.addListener('receivedFiles', (shared) => {
+          console.log('Received data:', shared);
+          if (shared && shared.data) {
+            setSharedData(shared.data);
+          }
+        });
+      } catch (error) {
+        console.error('Error initializing OpenWith:', error);
+      }
+    };
+
+    initializeOpenWith();
+  }, []);
+
+  return (
+    <OpenWithContext.Provider value={{ sharedData }}>
+      {children}
+    </OpenWithContext.Provider>
+  );
+};
+
+// App.tsx
+import { OpenWithProvider } from './OpenWithProvider';
+
+const App: React.FC = () => {
+  return (
+    <OpenWithProvider>
+      <YourApp />
+    </OpenWithProvider>
+  );
+};
+
+// SharedContent.tsx
+import { useOpenWith } from './OpenWithProvider';
+
+const SharedContent: React.FC = () => {
+  const { sharedData } = useOpenWith();
+
+  if (!sharedData) return null;
+
+  return (
+    <div>
+      <h2>Shared Content</h2>
+      <p>From: {sharedData.source?.applicationName}</p>
+      <p>Type: {sharedData.type}</p>
+      <p>Text: {sharedData.extras?.text}</p>
+    </div>
+  );
+};
+```
+
+### Vue Example
+
+```typescript
+// openWithPlugin.ts
+import { ref, readonly } from 'vue';
+import { Capacitor } from '@capacitor/core';
+import { OpenWith, SharedData } from '@squareetlabs/capacitor-openwith';
+
+const sharedData = ref<SharedData | null>(null);
+
+export const useOpenWith = () => {
+  const initialize = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      console.log('OpenWith only works on native platforms');
+      return;
+    }
+
+    try {
+      await OpenWith.addHandler(() => {
+        console.log('OpenWith handler added successfully');
+      });
+
+      await OpenWith.setVerbosity({ level: 1 });
+      await OpenWith.init();
+
+      await OpenWith.addListener('receivedFiles', (shared) => {
+        console.log('Received data:', shared);
+        if (shared && shared.data) {
+          sharedData.value = shared.data;
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing OpenWith:', error);
+    }
+  };
+
+  return {
+    sharedData: readonly(sharedData),
+    initialize
+  };
+};
+
+// main.ts
+import { createApp } from 'vue';
+import App from './App.vue';
+
+const app = createApp(App);
+app.mount('#app');
+
+// App.vue
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { useOpenWith } from './openWithPlugin';
+
+const { sharedData, initialize } = useOpenWith();
+
+onMounted(() => {
+  initialize();
+});
+</script>
+
+<template>
+  <div v-if="sharedData">
+    <h2>Shared Content</h2>
+    <p>From: {{ sharedData.source?.applicationName }}</p>
+    <p>Type: {{ sharedData.type }}</p>
+    <p>Text: {{ sharedData.extras?.text }}</p>
+  </div>
+</template>
+```
+
+### Svelte Example (Bonus)
+
+```typescript
+// openWith.ts
+import { writable } from 'svelte/store';
+import { Capacitor } from '@capacitor/core';
+import { OpenWith, SharedData } from '@squareetlabs/capacitor-openwith';
+
+export const sharedData = writable<SharedData | null>(null);
+
+export const initializeOpenWith = async () => {
+  if (!Capacitor.isNativePlatform()) {
+    console.log('OpenWith only works on native platforms');
+    return;
+  }
+
+  try {
+    await OpenWith.addHandler(() => {
+      console.log('OpenWith handler added successfully');
+    });
+
+    await OpenWith.setVerbosity({ level: 1 });
+    await OpenWith.init();
+
+    await OpenWith.addListener('receivedFiles', (shared) => {
+      console.log('Received data:', shared);
+      if (shared && shared.data) {
+        sharedData.set(shared.data);
+      }
+    });
+  } catch (error) {
+    console.error('Error initializing OpenWith:', error);
+  }
+};
+
+// App.svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { sharedData, initializeOpenWith } from './openWith';
+
+  onMount(() => {
+    initializeOpenWith();
+  });
+</script>
+
+{#if $sharedData}
+  <div>
+    <h2>Shared Content</h2>
+    <p>From: {$sharedData.source?.applicationName}</p>
+    <p>Type: {$sharedData.type}</p>
+    <p>Text: {$sharedData.extras?.text}</p>
+  </div>
+{/if}
+
 
 ## Supported Content Types
 
