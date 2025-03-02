@@ -1,6 +1,6 @@
 {
   "name": "@squareetlabs/capacitor-openwith",
-  "version": "1.0.15",
+  "version": "1.0.20",
   "description": "Capacitor plugin to handle files shared from other apps",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
