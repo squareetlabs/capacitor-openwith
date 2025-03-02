@@ -1,7 +1,7 @@
 {
   "name": "@squareetlabs/capacitor-openwith",
-  "version": "0.0.1",
-  "description": "Plugin capacitor 6 to appear on Send to...",
+  "version": "1.0.15",
+  "description": "Capacitor plugin to handle files shared from other apps",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -10,28 +10,48 @@
     "android/src/main/",
     "android/build.gradle",
     "dist/",
-    "ios/Sources",
-    "ios/Tests",
-    "Package.swift",
+    "ios/Plugin/",
     "SquareetlabsCapacitorOpenwith.podspec"
   ],
   "author": "Squareetlabs",
+  "contributors": [
+    {
+      "name": "Alberto Rial Barreiro",
+      "email": "alberto@squareet.com",
+      "url": "https://squareet.com"
+    },
+    {
+      "name": "Jacobo Cantorna Cigarrán",
+      "email": "jacobo@squareet.com.com",
+      "url": "https://squareet.com"
+    }
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://jacobo-squareet@bitbucket.org/squareetlabs/capacitor-openwith.git.git"
+    "url": "git+https://github.com/squareetlabs/capacitor-openwith.git"
   },
   "bugs": {
-    "url": "https://jacobo-squareet@bitbucket.org/squareetlabs/capacitor-openwith.git/issues"
+    "url": "https://github.com/squareetlabs/capacitor-openwith/issues"
   },
   "keywords": [
     "capacitor",
     "plugin",
-    "native"
+    "native",
+    "openwith",
+    "share",
+    "share intent",
+    "share intent android",
+    "share intent ios",
+    "share intent capacitor",
+    "share intent plugin",
+    "share intent plugin capacitor",
+    "share intent plugin capacitor android",
+    "share intent plugin capacitor ios"
   ],
   "scripts": {
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
-    "verify:ios": "xcodebuild -scheme SquareetlabsCapacitorOpenwith -destination generic/platform=iOS",
+    "verify:ios": "cd ios && pod install && xcodebuild -workspace Plugin.xcworkspace -scheme Plugin -destination generic/platform=iOS && cd ..",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
     "verify:web": "npm run build",
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
@@ -45,11 +65,14 @@
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
-  "devDependencies": {
+  "dependencies": {
     "@capacitor/android": "^6.0.0",
     "@capacitor/core": "^6.0.0",
-    "@capacitor/docgen": "^0.2.2",
-    "@capacitor/ios": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/docgen": "^0.0.18",
     "@ionic/eslint-config": "^0.3.0",
     "@ionic/prettier-config": "^1.0.1",
     "@ionic/swiftlint-config": "^1.1.2",
