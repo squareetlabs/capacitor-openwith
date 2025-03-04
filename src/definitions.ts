@@ -12,7 +12,7 @@ export interface OpenWithPlugin {
   VIEW: string;
 
   // Métodos principales
-  init(): Promise<void>;
+  initialize(): Promise<void>;
   exit(): Promise<void>;
   setVerbosity(options: { level: number }): Promise<void>;
   getVerbosity(): Promise<number>;

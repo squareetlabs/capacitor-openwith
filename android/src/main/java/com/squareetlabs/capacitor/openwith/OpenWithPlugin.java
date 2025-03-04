@@ -43,7 +43,7 @@ public class OpenWithPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void init(PluginCall call) {
+    public void initialize(PluginCall call) {
         call.resolve();
     }
 

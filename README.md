@@ -19,60 +19,134 @@ Add the following permissions to your `android/app/src/main/AndroidManifest.xml`
 
 ## iOS Configuration
 
-1. Add required capabilities in Xcode:
-   - Go to your app target
-   - Select "Signing & Capabilities" tab
-   - Add "Document Types" and configure the file types you want to handle
+Para permitir que tu aplicación reciba archivos compartidos desde otras aplicaciones, necesitas configurar una Share Extension:
 
-2. Update your AppDelegate.swift to handle shared files:
+### 1. Crear Share Extension
 
-```swift
-func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-    NotificationCenter.default.post(name: Notification.Name("OpenWithURLNotification"), object: url)
-    return true
-}
+1. Abre tu proyecto en XCode
+2. Ve a `File > New > Target`
+3. Selecciona "Share Extension" en la sección de iOS
+4. Dale un nombre (por ejemplo, "ShareExtension")
+5. Asegúrate de que "Embed in Application" esté seleccionado
 
-func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    // ... other initialization code ...
-    
-    if let url = launchOptions?[UIApplication.LaunchOptionsKey.url] as? URL {
-        NotificationCenter.default.post(name: Notification.Name("OpenWithURLNotification"), object: url)
-    }
-    
-    return true
-}
-```
+### 2. Configuración de App Groups
 
-3. Update your app's Info.plist to declare the document types your app can handle:
+1. Selecciona tu proyecto en XCode
+2. Selecciona el target principal de tu aplicación
+3. Ve a "Signing & Capabilities"
+4. Haz clic en "+" y añade "App Groups"
+5. Crea un nuevo grupo con el formato: `group.[tu-bundle-identifier]`
+6. Repite el proceso para el target de la Share Extension
+
+### 3. Configuración del Info.plist de la Share Extension
+
+Añade lo siguiente a tu Info.plist de la Share Extension:
 
 ```xml
-<key>CFBundleDocumentTypes</key>
-<array>
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionAttributes</key>
     <dict>
-        <key>CFBundleTypeName</key>
-        <string>All Files</string>
-        <key>LSHandlerRank</key>
-        <string>Alternate</string>
-        <key>LSItemContentTypes</key>
-        <array>
-            <string>public.content</string>
-            <string>public.data</string>
-            <string>public.text</string>
-            <string>public.image</string>
-            <string>public.audio</string>
-            <string>public.movie</string>
-            <string>public.composite-content</string>
-        </array>
+        <key>NSExtensionActivationRule</key>
+        <dict>
+            <key>NSExtensionActivationSupportsFileWithMaxCount</key>
+            <integer>1</integer>
+            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+            <integer>1</integer>
+        </dict>
     </dict>
-</array>
+    <key>NSExtensionMainStoryboard</key>
+    <string>MainInterface</string>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.share-services</string>
+</dict>
 ```
+
+### 4. Implementación
+
+El plugin automáticamente utilizará el bundle identifier de tu aplicación para configurar el App Group. No necesitas realizar ninguna configuración adicional en el código del plugin. 
+Si necesitas una implementación mínima del ShareViewController:
+
+```swift
+   import UIKit
+   import Social
+   import MobileCoreServices
+
+   class ShareViewController: UIViewController {
+       override func viewDidLoad() {
+           super.viewDidLoad()
+           handleSharedContent()
+       }
+       
+       private func handleSharedContent() {
+           let attachments = (self.extensionContext?.inputItems.first as? NSExtensionItem)?.attachments ?? []
+           
+           for attachment in attachments {
+               if attachment.hasItemConformingToTypeIdentifier(kUTTypeURL as String) {
+                   attachment.loadItem(forTypeIdentifier: kUTTypeURL as String, options: nil) { [weak self] (url, error) in
+                       if let sharedURL = url as? URL {
+                           self?.saveSharedContent(content: sharedURL.absoluteString, type: "url")
+                       }
+                       self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+                   }
+               }
+               // Añadir más tipos según necesidad
+           }
+       }
+       
+       private func saveSharedContent(content: String, type: String) {
+           if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
+               userDefaults.set(content, forKey: "SharedContent")
+               userDefaults.set(type, forKey: "SharedContentType")
+               userDefaults.synchronize()
+           }
+       }
+   }
+```
+
+### 5. Uso
+
+Una vez configurado, puedes escuchar los eventos de archivos compartidos en tu aplicación:
+
+```typescript
+import { OpenWith } from '@capacitor-community/open-with';
+
+OpenWith.addListener('receivedFiles', async (data) => {
+  console.log('Archivo recibido:', data);
+  // data.data contiene:
+  // - uri: URL del archivo
+  // - type: tipo MIME
+  // - source: información de la app que compartió (si está disponible)
+  // - extras: información adicional como título, texto, etc.
+});
+
+// Inicializar el plugin
+await OpenWith.initialize();
+```
+
+### 6. Tipos de Contenido Soportados
+
+El plugin puede manejar varios tipos de contenido a través del Share Extension:
+- URLs y enlaces
+- Archivos de texto
+- Imágenes
+- Contactos (archivos .vcf)
+- Eventos de calendario (archivos .ics)
+- Ubicaciones (enlaces geo:)
+
+### 7. Solución de Problemas
+
+Si la Share Extension no aparece en el menú compartir:
+- Verifica que el App Group esté correctamente configurado en ambos targets
+- Asegúrate de que los tipos de archivo que quieres compartir estén incluidos en NSExtensionActivationRule
+- Comprueba que la Share Extension esté firmada con el mismo equipo de desarrollo que la aplicación principal
 
 ## API
 
 The plugin provides the following functions:
 
 - `addHandler()`: Adds a handler for shared file events
-- `init()`: Initializes the plugin
+- `initialize()`: Initializes the plugin
 - `setVerbosity({ level: number })`: Configures logging level (0: disabled, 1: enabled)
 
 ### Interfaces
@@ -163,7 +237,7 @@ export class OpenWithService {
             });
 
             await OpenWith.setVerbosity({level: 1});
-            await OpenWith.init();
+            await OpenWith.initialize();
 
             await OpenWith.addListener('receivedFiles', (shared: SharedFilesEvent) => {
                 console.log('Received data:', shared);
@@ -261,7 +335,7 @@ export const OpenWithProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
 
         await OpenWith.setVerbosity({ level: 1 });
-        await OpenWith.init();
+        await OpenWith.initialize();
 
         await OpenWith.addListener('receivedFiles', (shared) => {
           console.log('Received data:', shared);
@@ -337,7 +411,7 @@ export const useOpenWith = () => {
       });
 
       await OpenWith.setVerbosity({ level: 1 });
-      await OpenWith.init();
+      await OpenWith.initialize();
 
       await OpenWith.addListener('receivedFiles', (shared) => {
         console.log('Received data:', shared);
@@ -407,7 +481,7 @@ export const initializeOpenWith = async () => {
     });
 
     await OpenWith.setVerbosity({ level: 1 });
-    await OpenWith.init();
+    await OpenWith.initialize();
 
     await OpenWith.addListener('receivedFiles', (shared) => {
       console.log('Received data:', shared);

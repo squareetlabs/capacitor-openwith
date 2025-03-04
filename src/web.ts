@@ -13,7 +13,7 @@ export class OpenWithWeb extends WebPlugin implements OpenWithPlugin {
 
   private verbosityLevel: number = this.INFO;
 
-  async init(): Promise<void> {
+  async initialize(): Promise<void> {
     console.log('init not implemented on web');
   }
 
