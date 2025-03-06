@@ -9,22 +9,21 @@ public class OpenWithPlugin: CAPPlugin {
     private var handlerAdded = false
     private static let EVENT_NAME = "receivedFiles"
 
-    override public func load() {
+    @objc override public func load() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleUrlNotification(_:)),
             name: Notification.Name("OpenWithURLNotification"),
             object: nil
         )
-         checkSharedContent()
-
+        checkSharedContent()
 
         if verboseLogging {
             print("OpenWith: Plugin loaded")
         }
     }
 
-    @objc func addHandler(_ call: CAPPluginCall) {
+    @objc public func addHandler(_ call: CAPPluginCall) {
         handlerAdded = true
         call.resolve()
 
@@ -33,20 +32,33 @@ public class OpenWithPlugin: CAPPlugin {
         }
     }
 
-    @objc func initialize(_ call: CAPPluginCall) {
+    @objc public func initialize(_ call: CAPPluginCall) {
         if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
             userDefaults.synchronize()
-            NotificationCenter.default.addObserver(self, selector: #selector(handleSharedFile), name: NSNotification.Name("SharedFile"), object: nil)
-        }
-        processInitialFiles()
-        call.resolve()
-
-        if verboseLogging {
-            print("OpenWith: Plugin initialized")
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleSharedFile),
+                name: NSNotification.Name("SharedFile"),
+                object: nil
+            )
+            
+            // Verificar si hay contenido compartido pendiente
+            checkSharedContent()
+            
+            if verboseLogging {
+                print("OpenWith: Plugin initialized successfully")
+            }
+            
+            call.resolve()
+        } else {
+            if verboseLogging {
+                print("OpenWith: Failed to initialize UserDefaults with App Group")
+            }
+            call.reject("Failed to initialize plugin: App Group not configured correctly")
         }
     }
 
-    @objc func setVerbosity(_ call: CAPPluginCall) {
+    @objc public func setVerbosity(_ call: CAPPluginCall) {
         let level = call.getInt("level") ?? 0
         verboseLogging = level > 0
 
@@ -54,6 +66,40 @@ public class OpenWithPlugin: CAPPlugin {
             print("OpenWith: Verbosity set to \(level)")
         }
         call.resolve()
+    }
+
+    private func checkSharedContent() {
+        if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
+            if let content = userDefaults.string(forKey: "SharedContent"),
+               let type = userDefaults.string(forKey: "SharedContentType") {
+                
+                let sharedData: [String: Any] = [
+                    "uri": content,
+                    "type": type,
+                    "extras": [:] as [String: Any]
+                ]
+                
+                notifyListeners(OpenWithPlugin.EVENT_NAME, data: [
+                    "data": sharedData
+                ])
+                
+                // Limpiar los datos después de procesarlos
+                userDefaults.removeObject(forKey: "SharedContent")
+                userDefaults.removeObject(forKey: "SharedContentType")
+                userDefaults.synchronize()
+                
+                if verboseLogging {
+                    print("OpenWith: Processed pending shared content")
+                }
+            }
+        }
+    }
+
+    @objc private func handleSharedFile(_ notification: Notification) {
+        if verboseLogging {
+            print("OpenWith: Received SharedFile notification")
+        }
+        checkSharedContent()
     }
 
     private func processInitialFiles() {
@@ -177,82 +223,45 @@ public class OpenWithPlugin: CAPPlugin {
         }
     }
 
-private func checkSharedContent() {
-    if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
-        if let sharedURL = userDefaults.string(forKey: "SharedURL") {
-            // Procesar URL compartida
-            handleSharedContent(content: sharedURL, type: "url")
-            userDefaults.removeObject(forKey: "SharedURL")
+    private func getSourceApplication() -> (bundleId: String?, name: String?, iconName: String?) {
+        // En iOS 13 y posteriores, podemos usar el scene
+        if #available(iOS 13.0, *) {
+            guard let scene = bridge?.viewController?.view.window?.windowScene else {
+                return (nil, nil, nil)
+            }
+
+            // Intentar obtener la información de la aplicación de origen desde userActivity
+            if let activity = scene.session.stateRestorationActivity {
+                if let sourceAppBundleId = activity.userInfo?["UIApplicationOpenURLOptionsSourceApplicationKey"] as? String {
+                    var name: String? = nil
+                    var iconName: String? = nil
+
+                    if let appBundle = Bundle(identifier: sourceAppBundleId) {
+                        name = appBundle.infoDictionary?["CFBundleDisplayName"] as? String
+                        iconName = appBundle.infoDictionary?["CFBundleIconName"] as? String
+                    }
+
+                    return (sourceAppBundleId, name, iconName)
+                }
+            }
         }
 
-        if let sharedText = userDefaults.string(forKey: "SharedText") {
-            // Procesar texto compartido
-            handleSharedContent(content: sharedText, type: "text")
-            userDefaults.removeObject(forKey: "SharedText")
+        // Fallback para versiones anteriores o si no se encuentra la información
+        if let options = UserDefaults.standard.dictionary(forKey: "URLOpenOptions") as? [String: Any],
+           let sourceAppBundleId = options[UIApplication.OpenURLOptionsKey.sourceApplication.rawValue] as? String {
+            var name: String? = nil
+            var iconName: String? = nil
+
+            if let appBundle = Bundle(identifier: sourceAppBundleId) {
+                name = appBundle.infoDictionary?["CFBundleDisplayName"] as? String
+                iconName = appBundle.infoDictionary?["CFBundleIconName"] as? String
+            }
+
+            return (sourceAppBundleId, name, iconName)
         }
 
-        if let sharedImage = userDefaults.string(forKey: "SharedImage") {
-            // Procesar imagen compartida
-            handleSharedContent(content: sharedImage, type: "image")
-            userDefaults.removeObject(forKey: "SharedImage")
-        }
-
-        userDefaults.synchronize()
+        return (nil, nil, nil)
     }
-}
-
-private func handleSharedContent(content: String, type: String) {
-    var data = JSObject()
-    data["type"] = type
-    data["content"] = content
-
-    var eventData = JSObject()
-    eventData["data"] = data
-    notifyListeners(OpenWithPlugin.EVENT_NAME, data: eventData)
-}
-
-
-  private func getSourceApplication() -> (bundleId: String?, name: String?, iconName: String?) {
-      // En iOS 13 y posteriores, podemos usar el scene
-      if #available(iOS 13.0, *) {
-          guard let scene = bridge?.viewController?.view.window?.windowScene else {
-              return (nil, nil, nil)
-          }
-
-          // Intentar obtener la información de la aplicación de origen desde userActivity
-          if let activity = scene.session.stateRestorationActivity {
-              if let sourceAppBundleId = activity.userInfo?["UIApplicationOpenURLOptionsSourceApplicationKey"] as? String {
-                  var name: String? = nil
-                  var iconName: String? = nil
-
-                  if let appBundle = Bundle(identifier: sourceAppBundleId) {
-                      name = appBundle.infoDictionary?["CFBundleDisplayName"] as? String
-                      iconName = appBundle.infoDictionary?["CFBundleIconName"] as? String
-                  }
-
-                  return (sourceAppBundleId, name, iconName)
-              }
-          }
-      }
-
-      // Fallback para versiones anteriores o si no se encuentra la información
-      if let options = UserDefaults.standard.dictionary(forKey: "URLOpenOptions") as? [String: Any],
-         let sourceAppBundleId = options[UIApplication.OpenURLOptionsKey.sourceApplication.rawValue] as? String {
-          var name: String? = nil
-          var iconName: String? = nil
-
-          if let appBundle = Bundle(identifier: sourceAppBundleId) {
-              name = appBundle.infoDictionary?["CFBundleDisplayName"] as? String
-              iconName = appBundle.infoDictionary?["CFBundleIconName"] as? String
-          }
-
-          return (sourceAppBundleId, name, iconName)
-      }
-
-      return (nil, nil, nil)
-  }
-
-
 
     deinit {
         NotificationCenter.default.removeObserver(self)

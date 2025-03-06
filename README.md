@@ -49,9 +49,15 @@ Añade lo siguiente a tu Info.plist de la Share Extension:
     <dict>
         <key>NSExtensionActivationRule</key>
         <dict>
+            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+            <integer>1</integer>
             <key>NSExtensionActivationSupportsFileWithMaxCount</key>
             <integer>1</integer>
-            <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+            <key>NSExtensionActivationSupportsText</key>
+            <true/>
+            <key>NSExtensionActivationSupportsImageWithMaxCount</key>
+            <integer>1</integer>
+            <key>NSExtensionActivationSupportsMovieWithMaxCount</key>
             <integer>1</integer>
         </dict>
     </dict>
@@ -62,49 +68,89 @@ Añade lo siguiente a tu Info.plist de la Share Extension:
 </dict>
 ```
 
-### 4. Implementación
+### 4. Implementación del ShareViewController
 
-El plugin automáticamente utilizará el bundle identifier de tu aplicación para configurar el App Group. No necesitas realizar ninguna configuración adicional en el código del plugin. 
-Si necesitas una implementación mínima del ShareViewController:
+Reemplaza el contenido del archivo `ShareViewController.swift` con el siguiente código:
 
 ```swift
-   import UIKit
-   import Social
-   import MobileCoreServices
+import UIKit
+import Social
+import MobileCoreServices
+import UniformTypeIdentifiers
 
-   class ShareViewController: UIViewController {
-       override func viewDidLoad() {
-           super.viewDidLoad()
-           handleSharedContent()
-       }
-       
-       private func handleSharedContent() {
-           let attachments = (self.extensionContext?.inputItems.first as? NSExtensionItem)?.attachments ?? []
-           
-           for attachment in attachments {
-               if attachment.hasItemConformingToTypeIdentifier(kUTTypeURL as String) {
-                   attachment.loadItem(forTypeIdentifier: kUTTypeURL as String, options: nil) { [weak self] (url, error) in
-                       if let sharedURL = url as? URL {
-                           self?.saveSharedContent(content: sharedURL.absoluteString, type: "url")
-                       }
-                       self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
-                   }
-               }
-               // Añadir más tipos según necesidad
-           }
-       }
-       
-       private func saveSharedContent(content: String, type: String) {
-           if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
-               userDefaults.set(content, forKey: "SharedContent")
-               userDefaults.set(type, forKey: "SharedContentType")
-               userDefaults.synchronize()
-           }
-       }
-   }
+class ShareViewController: SLComposeServiceViewController {
+
+    override func isContentValid() -> Bool {
+        // Puedes validar si hay contenido, por ejemplo, si el usuario escribió algo
+        // o si hay attachments. Por simplicidad devolvemos true.
+        return true
+    }
+    
+    override func didSelectPost() {
+        // Este método se llama cuando el usuario toca el botón de "Post" (o "Compartir").
+
+        // 1. Obtén el primer NSExtensionItem:
+        if let extensionItem = extensionContext?.inputItems.first as? NSExtensionItem,
+           let attachments = extensionItem.attachments {
+            
+            // 2. Itera sobre los attachments
+            for attachment in attachments {
+                // Verifica si es del tipo URL
+                if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                    attachment.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { [weak self] (item, error) in
+                        
+                        guard let self = self else { return }
+                        
+                        if let url = item as? URL {
+                            // 3. Aquí guardas el contenido como antes
+                            self.saveSharedContent(content: url.absoluteString, type: "url")
+                        }
+                        
+                        // Importante: se completa la request
+                        // para que la extensión se cierre
+                        self.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+                    }
+                    
+                    // Como probablemente quieras manejar solo un URL, podrías hacer un break aquí
+                    // break
+                }
+                // Si quieres más tipos (imágenes, texto, etc.), añade lógica extra
+            }
+        } else {
+            // Si no hay items o no se pudo castear,
+            // simplemente cierra la extensión
+            extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+        }
+    }
+    
+    override func configurationItems() -> [Any]! {
+        // Aquí podrías añadir celdas de configuración en la parte de abajo de la hoja
+        // (por ejemplo, si quieres un switch para "compartir públicamente" o similar).
+        // Si no lo necesitas, devuélvelo vacío.
+        return []
+    }
+    
+    private func saveSharedContent(content: String, type: String) {
+        // Guarda el contenido en UserDefaults compartido
+        if let userDefaults = UserDefaults(suiteName: "group." + (Bundle.main.bundleIdentifier ?? "")) {
+            userDefaults.set(content, forKey: "SharedContent")
+            userDefaults.set(type, forKey: "SharedContentType")
+            userDefaults.synchronize()
+        }
+    }
+}
 ```
 
-### 5. Uso
+### 5. Configuración del Bundle Identifier
+
+Asegúrate de que el Bundle Identifier de la Share Extension esté correctamente configurado en el Info.plist:
+
+```xml
+<key>CFBundleIdentifier</key>
+<string>$(PRODUCT_BUNDLE_IDENTIFIER).share-extension</string>
+```
+
+### 6. Uso en tu aplicación
 
 Una vez configurado, puedes escuchar los eventos de archivos compartidos en tu aplicación:
 
@@ -124,22 +170,14 @@ OpenWith.addListener('receivedFiles', async (data) => {
 await OpenWith.initialize();
 ```
 
-### 6. Tipos de Contenido Soportados
-
-El plugin puede manejar varios tipos de contenido a través del Share Extension:
-- URLs y enlaces
-- Archivos de texto
-- Imágenes
-- Contactos (archivos .vcf)
-- Eventos de calendario (archivos .ics)
-- Ubicaciones (enlaces geo:)
-
 ### 7. Solución de Problemas
 
 Si la Share Extension no aparece en el menú compartir:
 - Verifica que el App Group esté correctamente configurado en ambos targets
 - Asegúrate de que los tipos de archivo que quieres compartir estén incluidos en NSExtensionActivationRule
 - Comprueba que la Share Extension esté firmada con el mismo equipo de desarrollo que la aplicación principal
+- Limpia y reconstruye el proyecto (Product > Clean Build Folder)
+- Desinstala y vuelve a instalar la aplicación en el dispositivo/simulador
 
 ## API
 
