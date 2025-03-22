@@ -81,61 +81,71 @@ import UniformTypeIdentifiers
 class ShareViewController: SLComposeServiceViewController {
 
     override func isContentValid() -> Bool {
-        // Puedes validar si hay contenido, por ejemplo, si el usuario escribió algo
-        // o si hay attachments. Por simplicidad devolvemos true.
         return true
     }
     
     override func didSelectPost() {
-        // Este método se llama cuando el usuario toca el botón de "Post" (o "Compartir").
-
-        // 1. Obtén el primer NSExtensionItem:
         if let extensionItem = extensionContext?.inputItems.first as? NSExtensionItem,
            let attachments = extensionItem.attachments {
             
-            // 2. Itera sobre los attachments
             for attachment in attachments {
-                // Verifica si es del tipo URL
-                if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-                    attachment.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { [weak self] (item, error) in
-                        
-                        guard let self = self else { return }
-                        
-                        if let url = item as? URL {
-                            // 3. Aquí guardas el contenido como antes
-                            self.saveSharedContent(content: url.absoluteString, type: "url")
+                if #available(iOS 14.0, *) {
+                    if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                        attachment.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { [weak self] (item, error) in
+                            guard let self = self else { return }
+                            
+                            if let url = item as? URL {
+                                self.saveSharedContent(content: url.absoluteString, type: "url")
+                            }
+                            
+                            self.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
                         }
-                        
-                        // Importante: se completa la request
-                        // para que la extensión se cierre
-                        self.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
                     }
-                    
-                    // Como probablemente quieras manejar solo un URL, podrías hacer un break aquí
-                    // break
+                } else {
+                    // Para iOS 13 y anteriores
+                    let urlIdentifier = kUTTypeURL as String
+                    if attachment.hasItemConformingToTypeIdentifier(urlIdentifier) {
+                        attachment.loadItem(forTypeIdentifier: urlIdentifier, options: nil) { [weak self] (item, error) in
+                            guard let self = self else { return }
+                            
+                            if let url = item as? URL {
+                                self.saveSharedContent(content: url.absoluteString, type: "url")
+                            }
+                            
+                            self.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+                        }
+                    }
                 }
-                // Si quieres más tipos (imágenes, texto, etc.), añade lógica extra
             }
         } else {
-            // Si no hay items o no se pudo castear,
-            // simplemente cierra la extensión
             extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
         }
     }
     
     override func configurationItems() -> [Any]! {
-        // Aquí podrías añadir celdas de configuración en la parte de abajo de la hoja
-        // (por ejemplo, si quieres un switch para "compartir públicamente" o similar).
-        // Si no lo necesitas, devuélvelo vacío.
         return []
     }
     
     private func saveSharedContent(content: String, type: String) {
-        // Guarda el contenido en UserDefaults compartido
-        if let userDefaults = UserDefaults(suiteName: "group." + (Bundle.main.bundleIdentifier ?? "")) {
+        // Usa el mismo App Group ID que en tu plugin
+        let bundleId = Bundle.main.bundleIdentifier?.split(separator: ".").dropLast().joined(separator: ".") ?? ""
+        let appGroupId = "group.\(bundleId)"
+        
+        NSLog("OpenWith ShareExtension: Intentando guardar con App Group: \(appGroupId)")
+        
+        if let userDefaults = UserDefaults(suiteName: appGroupId) {
             userDefaults.set(content, forKey: "SharedContent")
             userDefaults.set(type, forKey: "SharedContentType")
             userDefaults.synchronize()
+            
+            // Enviar notificación
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SharedFile"), object: nil)
+            }
+            
+            NSLog("OpenWith ShareExtension: Contenido guardado correctamente")
+        } else {
+            NSLog("OpenWith ShareExtension: No se pudo acceder a UserDefaults con App Group: \(appGroupId)")
         }
     }
 }

@@ -33,7 +33,15 @@ public class OpenWithPlugin: CAPPlugin {
     }
 
     @objc public func initialize(_ call: CAPPluginCall) {
-        if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
+        // Obtener el identificador del grupo de forma más segura
+        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        let appGroupId = "group.\(bundleId)"
+        
+        if verboseLogging {
+            print("OpenWith: Intentando inicializar con App Group: \(appGroupId)")
+        }
+        
+        if let userDefaults = UserDefaults(suiteName: appGroupId) {
             userDefaults.synchronize()
             NotificationCenter.default.addObserver(
                 self,
@@ -46,15 +54,15 @@ public class OpenWithPlugin: CAPPlugin {
             checkSharedContent()
             
             if verboseLogging {
-                print("OpenWith: Plugin initialized successfully")
+                print("OpenWith: Plugin initialized successfully with App Group: \(appGroupId)")
             }
             
             call.resolve()
         } else {
             if verboseLogging {
-                print("OpenWith: Failed to initialize UserDefaults with App Group")
+                print("OpenWith: Failed to initialize UserDefaults with App Group: \(appGroupId)")
             }
-            call.reject("Failed to initialize plugin: App Group not configured correctly")
+            call.reject("Failed to initialize plugin: App Group not configured correctly. Make sure '\(appGroupId)' is configured in Xcode.")
         }
     }
 
@@ -69,7 +77,15 @@ public class OpenWithPlugin: CAPPlugin {
     }
 
     private func checkSharedContent() {
-        if let userDefaults = UserDefaults(suiteName: "group." + Bundle.main.bundleIdentifier!) {
+        // Obtener el identificador del grupo
+        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        let appGroupId = "group.\(bundleId)"
+        
+        if verboseLogging {
+            print("OpenWith: Checking shared content with App Group: \(appGroupId)")
+        }
+        
+        if let userDefaults = UserDefaults(suiteName: appGroupId) {
             if let content = userDefaults.string(forKey: "SharedContent"),
                let type = userDefaults.string(forKey: "SharedContentType") {
                 
@@ -91,7 +107,11 @@ public class OpenWithPlugin: CAPPlugin {
                 if verboseLogging {
                     print("OpenWith: Processed pending shared content")
                 }
+            } else if verboseLogging {
+                print("OpenWith: No pending shared content found")
             }
+        } else if verboseLogging {
+            print("OpenWith: Failed to access UserDefaults with App Group: \(appGroupId)")
         }
     }
 
