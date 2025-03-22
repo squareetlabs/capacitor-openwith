@@ -150,7 +150,45 @@ Asegúrate de que el Bundle Identifier de la Share Extension esté correctamente
 <string>$(PRODUCT_BUNDLE_IDENTIFIER).share-extension</string>
 ```
 
-### 6. Uso en tu aplicación
+### 6. Configuración adicional en el Info.plist de la aplicación principal
+
+Para que tu aplicación aparezca en las opciones de compartir, debes añadir lo siguiente al Info.plist de tu aplicación principal:
+
+```xml
+<key>LSSupportsOpeningDocumentsInPlace</key>
+<true/>
+<key>UIFileSharingEnabled</key>
+<true/>
+<key>UTImportedTypeDeclarations</key>
+<array>
+    <dict>
+        <key>UTTypeConformsTo</key>
+        <array>
+            <string>public.data</string>
+            <string>public.content</string>
+        </array>
+        <key>UTTypeDescription</key>
+        <string>Contenido compartido</string>
+        <key>UTTypeIdentifier</key>
+        <string>com.tu-empresa.app.shared-content</string>
+        <key>UTTypeTagSpecification</key>
+        <dict>
+            <key>public.filename-extension</key>
+            <array>
+                <string>*</string>
+            </array>
+            <key>public.mime-type</key>
+            <array>
+                <string>*/*</string>
+            </array>
+        </dict>
+    </dict>
+</array>
+```
+
+Asegúrate de reemplazar `com.tu-empresa.app.shared-content` con un identificador único basado en el bundle identifier de tu aplicación.
+
+### 7. Uso en tu aplicación
 
 Una vez configurado, puedes escuchar los eventos de archivos compartidos en tu aplicación:
 
@@ -170,7 +208,7 @@ OpenWith.addListener('receivedFiles', async (data) => {
 await OpenWith.initialize();
 ```
 
-### 7. Solución de Problemas
+### 8. Solución de Problemas
 
 Si la Share Extension no aparece en el menú compartir:
 - Verifica que el App Group esté correctamente configurado en ambos targets
