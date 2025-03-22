@@ -9,4 +9,5 @@ CAP_PLUGIN(OpenWithPlugin, "OpenWith",
     CAP_PLUGIN_METHOD(setVerbosity, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(getVerbosity, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(load, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(getAppGroup, CAPPluginReturnPromise);
 ) 

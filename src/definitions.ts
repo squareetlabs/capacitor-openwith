@@ -18,11 +18,17 @@ export interface OpenWithPlugin {
   getVerbosity(): Promise<number>;
   addHandler(callback: () => void): Promise<void>;
   load(dataDescriptor: FileDescriptor): Promise<string>;
+  getAppGroup(): Promise<AppGroupInfo>;
   addListener(
     eventName: 'receivedFiles',
     listenerFunc: (event: SharedFilesEvent) => void
   ): Promise<PluginListenerHandle>;
   removeAllListeners(): Promise<void>;
+}
+
+export interface AppGroupInfo {
+  appGroupId: string;
+  isConfigured: boolean;
 }
 
 export interface SharedIntent {

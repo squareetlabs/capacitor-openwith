@@ -1,5 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
-import type { OpenWithPlugin, FileDescriptor } from './definitions';
+import type { OpenWithPlugin, FileDescriptor, AppGroupInfo } from './definitions';
 
 export class OpenWithWeb extends WebPlugin implements OpenWithPlugin {
   DEBUG = 0;
@@ -37,5 +37,13 @@ export class OpenWithWeb extends WebPlugin implements OpenWithPlugin {
   async load(dataDescriptor: FileDescriptor): Promise<string> {
     console.log('Attempting to load file:', dataDescriptor);
     throw new Error('Method not implemented in web version');
+  }
+
+  async getAppGroup(): Promise<AppGroupInfo> {
+    console.log('getAppGroup not implemented on web');
+    return {
+      appGroupId: 'not-available-on-web',
+      isConfigured: false
+    };
   }
 }

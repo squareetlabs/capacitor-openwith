@@ -9,7 +9,21 @@ public class OpenWithPlugin: CAPPlugin {
     private var handlerAdded = false
     private static let EVENT_NAME = "receivedFiles"
 
+    private func getAppGroupId() -> String {
+        // Obtener el identificador completo de la aplicación host
+        // Ejemplo: com.squareetlabs.qr -> group.com.squareetlabs.qr
+        let hostBundleId = Bundle.main.bundleIdentifier ?? ""
+        return "group.\(hostBundleId)"
+    }
+
     @objc override public func load() {
+        // Usamos el método para obtener el App Group ID
+        let appGroupId = getAppGroupId()
+        
+        if verboseLogging {
+            print("OpenWith: Plugin loading with App Group: \(appGroupId)")
+        }
+        
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleUrlNotification(_:)),
@@ -33,9 +47,8 @@ public class OpenWithPlugin: CAPPlugin {
     }
 
     @objc public func initialize(_ call: CAPPluginCall) {
-        // Obtener el identificador del grupo de forma más segura
-        let bundleId = Bundle.main.bundleIdentifier ?? ""
-        let appGroupId = "group.\(bundleId)"
+        // Obtener el identificador del grupo usando el método común
+        let appGroupId = getAppGroupId()
         
         if verboseLogging {
             print("OpenWith: Intentando inicializar con App Group: \(appGroupId)")
@@ -51,7 +64,7 @@ public class OpenWithPlugin: CAPPlugin {
             )
             
             // Verificar si hay contenido compartido pendiente
-            checkSharedContent()
+            checkSharedContent(withAppGroupId: appGroupId)
             
             if verboseLogging {
                 print("OpenWith: Plugin initialized successfully with App Group: \(appGroupId)")
@@ -76,10 +89,9 @@ public class OpenWithPlugin: CAPPlugin {
         call.resolve()
     }
 
-    private func checkSharedContent() {
-        // Obtener el identificador del grupo
-        let bundleId = Bundle.main.bundleIdentifier ?? ""
-        let appGroupId = "group.\(bundleId)"
+    private func checkSharedContent(withAppGroupId: String? = nil) {
+        // Usar el appGroupId proporcionado o obtenerlo con el método común
+        let appGroupId = withAppGroupId ?? getAppGroupId()
         
         if verboseLogging {
             print("OpenWith: Checking shared content with App Group: \(appGroupId)")
@@ -281,6 +293,22 @@ public class OpenWithPlugin: CAPPlugin {
         }
 
         return (nil, nil, nil)
+    }
+
+    @objc public func getAppGroup(_ call: CAPPluginCall) {
+        let appGroupId = getAppGroupId()
+        
+        // Comprobar si el App Group está configurado
+        let isConfigured = UserDefaults(suiteName: appGroupId) != nil
+        
+        call.resolve([
+            "appGroupId": appGroupId,
+            "isConfigured": isConfigured
+        ])
+        
+        if verboseLogging {
+            print("OpenWith: App Group ID requested: \(appGroupId), configured: \(isConfigured)")
+        }
     }
 
     deinit {
